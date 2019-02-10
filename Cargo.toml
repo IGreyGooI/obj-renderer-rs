@@ -1,0 +1,25 @@
+[package]
+name = "devel-main"
+version = "0.1.0"
+authors = ["Kikokushi <s468zhan@edu.uwaterloo.ca>"]
+edition = "2018"
+build = "build.rs"
+
+[dependencies.gfx-backend-vulkan]
+git = "https://github.com/gfx-rs/gfx"   
+
+[dependencies.gfx-hal]
+git = "https://github.com/gfx-rs/gfx"
+
+[dependencies.gfx-backend-dx12]
+git = "https://github.com/gfx-rs/gfx"
+
+[dependencies]
+image = "0.21.0"
+winit = "0.18.1"
+glutin = "0.19.0"
+ron = "0.4.1"
+specs = "0.14.3"
+
+[build-dependencies]
+glsl-to-spirv = "0.1.7"
