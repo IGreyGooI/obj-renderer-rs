@@ -42,10 +42,9 @@ use std::rc::Rc;
 use crate::lib::resource::ReadFile;
 use crate::lib::resource::gfs::GemFileSystem;
 use super::window::WindowState;
-
-pub struct Renderer {
-    gfs: GemFileSystem<u8>,
-}
+use gfx_hal::command::CommandBuffer;
+use gfx_hal::command::OneShot;
+use gfx_hal::command::Primary;
 
 pub struct DeviceState {
     pub device: <B as TB>::Device,
@@ -177,18 +176,24 @@ impl SwapchainState {
         swap_config: SwapchainConfig,
         surface: &mut <B as TB>::Surface,
         surface_color_format: Format,
-        render_pass: <B as TB>::RenderPass,
+        render_pass: &<B as TB>::RenderPass,
     ) {
         let extent = swap_config.extent.to_extent();
         let device = &self.device_state.borrow().device;
         let (swapchain, backbuffer) = unsafe {
-            //TODO: I cannot get a copy of swapchain which contains the ptr of actual swapchain
-            // is there anything I can do here.
-            device.create_swapchain(
-                surface,
-                swap_config,
-                None,
-            )
+            if let Some(swapchain) = self.swapchain.take() {
+                device.create_swapchain(
+                    surface,
+                    swap_config,
+                    Some(swapchain),
+                )
+            } else {
+                device.create_swapchain(
+                    surface,
+                    swap_config,
+                    None,
+                )
+            }
         }.unwrap();
         
         let (frame_views, frame_buffers) = unsafe {
@@ -219,7 +224,7 @@ impl SwapchainState {
                         .map(
                             |image_view| {
                                 device
-                                    .create_framebuffer(&render_pass,
+                                    .create_framebuffer(render_pass,
                                                         vec![image_view],
                                                         self.extent,
                                     ).unwrap()
@@ -231,6 +236,10 @@ impl SwapchainState {
                 Backbuffer::Framebuffer(framebuffer) => { (vec![], vec![framebuffer]) }
             }
         };
+        self.build_required = false;
+        self.swapchain = Some(swapchain);
+        self.frame_views = Some(frame_views);
+        self.frame_buffers = Some(frame_buffers);
     }
 }
 
@@ -277,6 +286,7 @@ impl PipelineState {
     ) -> PipelineState {
         let pipeline_layout = unsafe {
             let device = &device_state.borrow().device;
+            
             device.create_pipeline_layout(&[], &[])
         }.unwrap();
         
@@ -417,6 +427,7 @@ pub struct RendererState {
     swapchain_state: SwapchainState,
     device_state: Rc<RefCell<DeviceState>>,
     instance: backend::Instance,
+    surface: <B as TB>::Surface,
     adapter: Adapter<B>,
 }
 
@@ -425,15 +436,10 @@ impl RendererState {
         window_state: &WindowState,
         render_size: Extent2D,
     ) -> RendererState {
-        let mut events_loop = EventsLoop::new();
-        
         let window = &window_state.window;
-        
         let instance = backend::Instance::create(INSTANCE_NAME, 1);
         let surface = instance.create_surface(&window);
-        
         let adapter = select_adapter(&mut instance.enumerate_adapters());
-        
         let device_state =
             Rc::new(RefCell::new(DeviceState::new(&adapter, &surface)));
         
@@ -462,6 +468,7 @@ impl RendererState {
         RendererState {
             gfs,
             instance,
+            surface,
             adapter,
             device_state,
             pipeline_state,
@@ -469,6 +476,79 @@ impl RendererState {
             swapchain_state,
         }
     }
+    pub fn rebuild_swapchain(&mut self, render_size: Extent2D) {
+        let surface = &mut self.surface;
+        let (caps, formats, _) = surface.compatibility(&self.adapter.physical_device);
+        
+        let surface_color_format = select_surface_color_format(formats);
+        
+        let swap_config = SwapchainConfig::from_caps(
+            &caps,
+            surface_color_format,
+            render_size,
+        );
+        
+        let render_pass = self.render_pass_state.render_pass.as_ref().unwrap();
+        let swapchain_state = &mut self.swapchain_state;
+        swapchain_state.build(
+            swap_config,
+            surface,
+            surface_color_format,
+            render_pass,
+        )
+    }
+    
+    pub fn try_rebuild_swapchain(&mut self, render_size: Extent2D) {
+        if self.swapchain_state.build_required {
+            self.rebuild_swapchain(render_size);
+        }
+    }
+    pub fn paint_frame(&mut self) {
+        let mut device_state = self.device_state.borrow_mut();
+        let command_pool = device_state.command_pool.as_mut().unwrap();
+        
+        unsafe {
+            command_pool.reset();
+        }
+        let frame_index: SwapImageIndex = {
+            match self.swapchain_state.swapchain.as_mut() {
+                Some(swapchain) => {
+                    match
+                        unsafe {
+                            swapchain.acquire_image(
+                                !0,
+                                FrameSync::Semaphore(
+                                    self.swapchain_state
+                                        .frame_semaphore.as_ref().unwrap()))
+                        } {
+                        Ok(i) => i,
+                        Err(_) => {
+                            self.swapchain_state.build_required = true;
+                            return;
+                        }
+                    }
+                }
+                None => {
+                    self.swapchain_state.build_required = true;
+                    return;
+                }
+            }
+        };
+        
+        let swapchain = self.swapchain_state.swapchain.as_ref().unwrap();
+        unsafe {
+            let command_queue = &mut device_state.queue_group.queues[0];
+            if let Err(_) = swapchain.present(
+                command_queue,
+                frame_index,
+                Some(self.swapchain_state.present_semaphore.as_ref().unwrap())
+            ){
+                self.swapchain_state.build_required = true;
+                return;
+            }
+        };
+    }
+
 }
 
 pub fn select_adapter(adapters: &mut Vec<Adapter<B>>) -> Adapter<B> {
@@ -484,5 +564,3 @@ pub fn select_surface_color_format(formats: Option<Vec<Format>>) -> Format {
         None => Format::Rgba8Srgb,
     }
 }
-
-pub trait Draw {}

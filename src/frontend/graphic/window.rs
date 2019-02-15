@@ -5,20 +5,20 @@ use super::constants::*;
 
 pub struct WindowState {
     pub window: Window,
-    pub event_loop: EventsLoop,
+    pub events_loop: EventsLoop,
 }
 
 impl WindowState {
     pub fn new() -> WindowState {
-        let mut event_loop = EventsLoop::new();
+        let events_loop = EventsLoop::new();
         let window = WindowBuilder::new()
             .with_dimensions(WINDOW_SIZE)
             .with_title(WINDOW_TITLE)
-            .build(&event_loop)
+            .build(&events_loop)
             .unwrap();
         WindowState {
             window,
-            event_loop,
+            events_loop,
         }
     }
 }

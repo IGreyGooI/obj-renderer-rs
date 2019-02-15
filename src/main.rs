@@ -14,12 +14,18 @@ extern crate specs;
 
 pub mod frontend;
 pub mod lib;
+pub mod app;
+
 fn main() {
     let window_state = frontend::graphic::window::WindowState::new();
-    let renderer_state =
+    let mut renderer_state =
         frontend::graphic::renderer::RendererState::new(
             &window_state,
             frontend::graphic::constants::RENDER_SIZE
         );
-    
+    'main: loop {
+        renderer_state.try_rebuild_swapchain(frontend::graphic::constants::RENDER_SIZE);
+        renderer_state.paint_frame();
+        
+    }
 }
