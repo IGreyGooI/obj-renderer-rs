@@ -15,7 +15,8 @@ impl Painter {
         window_state: &WindowState,
         render_size: Extent2D,
     ) -> Painter {
-        let renderer = Arc::new(
+        let renderer =
+            Arc::new(
                 RwLock::new(
                     RendererState::new(
                         window_state,

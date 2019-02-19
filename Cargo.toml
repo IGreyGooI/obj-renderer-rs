@@ -14,6 +14,9 @@ git = "https://github.com/gfx-rs/gfx"
 [dependencies.gfx-backend-dx12]
 git = "https://github.com/gfx-rs/gfx"
 
+[dependencies.obj]
+git = "https://github.com/IGreyGooI/obj"
+
 [dependencies]
 image = "0.21.0"
 winit = "0.18.1"
