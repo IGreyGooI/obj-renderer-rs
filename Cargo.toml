@@ -23,6 +23,7 @@ winit = "0.18.1"
 glutin = "0.19.0"
 ron = "0.4.1"
 specs = "0.14.3"
+cgmath = "0.17.0"
 
 [build-dependencies]
 glsl-to-spirv = "0.1.7"

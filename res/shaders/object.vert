@@ -3,13 +3,13 @@
 
 layout(binding = 0) uniform UniformBlock {
     mat4 projection_matrix;
-    mat4 model_view_matrix;
+    mat4 view_matrix;
     mat3 normal_matrix;
-    vec4 light_position;
+    vec3 light_position;
 } uniform_block;
 
 
-layout(location = 0) in vec4 vPosition;
+layout(location = 0) in vec3 vPosition;
 layout(location = 1) in vec3 vNormal;
 layout(location = 2) in vec3 vTangent;
 layout(location = 3) in vec2 vTexCoord;
@@ -21,6 +21,8 @@ layout(location = 2) out vec2 fTexCoord;
 void main()
 {
     // Tangent space vectors give the columns of the eye-to-tangent transform.
+    vec4 vPosition4 = vec4(vPosition, 1.0);
+    vec4 vlight_position4 = vec4(uniform_block.light_position, 1.0);
 
     vec3 N = uniform_block.normal_matrix * vNormal;
     vec3 T = uniform_block.normal_matrix * vTangent;
@@ -28,11 +30,11 @@ void main()
 
     // Compute the per-fragment attributes.
 
-    fView     =  M * vec3(uniform_block.model_view_matrix * vPosition);
-    fLight    =  M * vec3(uniform_block.model_view_matrix * uniform_block.light_position);
+    fView     =  M * vec3(uniform_block.view_matrix * vPosition4);
+    fLight    =  M * vec3(uniform_block.view_matrix * vlight_position4);
     fTexCoord =  vTexCoord;
 
     gl_Position = uniform_block.projection_matrix
-        * uniform_block.model_view_matrix
-        * vPosition;
+        * uniform_block.view_matrix
+        * vPosition4;
 }

@@ -11,7 +11,7 @@ use crate::{
                 prelude::*,
                 descriptor_set_layout::DescriptorSetLayoutState,
                 buffer::{UniformBuffer, VertexBuffer},
-            }
+            },
         }
     },
 };
@@ -24,6 +24,12 @@ use backend;
 use super::window::WindowState;
 use super::constants::*;
 use crate::lib::resource::ReadFile;
+use crate::lib::math::camera::Camera;
+use crate::lib::math::light::PointLight;
+use obj::{
+    Obj,
+    IndexTuple,
+};
 
 pub struct RendererState {
     // Rendering Global Variables:
@@ -40,7 +46,7 @@ pub struct RendererState {
     vertex_buffer: VertexBuffer<Vertex>,
     vert_uniform_buffer: UniformBuffer<VertUniformBlock>,
     frag_uniform_buffer: UniformBuffer<FragUniformBlock>,
-    gfs: GemFileSystem < u8 >,
+    gfs: GemFileSystem<u8>,
     object_pso: ObjectPso,
     render_pass_state: RenderPassState,
     swapchain_state: SwapchainState,
@@ -141,15 +147,80 @@ impl RendererState {
             depth: 0.0..1.0,
         };
         
-        let model_file = gfs.load("models/Chest.obj".to_string()).unwrap();
-        let object = obj::Obj::load_buf(model_file.as_ref()).unwrap();
+        let model_file = gfs
+            .load("models/Chest.obj".to_string())
+            .unwrap();
+        
+        let object: Obj<Vec<IndexTuple>> = Obj::load(model_file).unwrap();
+        
+        let mut vertices: Vec<Vertex> = vec![];
+        
+        for index in 0..object.position.len() {
+            let vertex = Vertex {
+                position: object.position[index],
+                normal: object.normal[index],
+                tangent: [0.0, 0.0, 0.0],
+                texture: object.texture[index],
+            };
+            vertices.push(vertex);
+        }
         
         let vertex_buffer = VertexBuffer::new(
-            device_state,
+            device_state.clone(),
             &adapter,
-            7a2ocmqios
-        )
+            vertices,
+        );
         
+        let camera = Camera::perspective(
+            cgmath::Point3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            cgmath::Point3 {
+                x: 4.0,
+                y: 4.0,
+                z: 4.0,
+            },
+        );
+        
+        let light = PointLight {
+            position: cgmath::Point3 {
+                x: 4.0,
+                y: 4.0,
+                z: 4.0,
+            }
+        };
+        
+        let vert_uniform_buffer = UniformBuffer::new(
+            device_state.clone(),
+            &adapter,
+            vec![
+                VertUniformBlock {
+                    projection_matrix: camera.projection.into(),
+                    model_view_matrix: camera.view.into(),
+                    normal_matrix: camera.normal.into(),
+                    light_position: light.position.into(),
+                }
+            ],
+            PipelineStage::VERTEX_SHADER,
+        );
+        
+        let frag_uniform_buffer =
+            UniformBuffer::new(
+                device_state.clone(),
+                &adapter,
+                vec![
+                    FragUniformBlock {
+                        ambient_light: [
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0]
+                    }
+                ],
+                PipelineStage::FRAGMENT_SHADER,
+            );
         
         let rebuild_swapchain = true;
         
@@ -158,12 +229,15 @@ impl RendererState {
             instance,
             surface,
             adapter,
+            vertex_buffer,
+            vert_uniform_buffer,
             device_state,
             object_pso,
             render_pass_state,
             swapchain_state,
             viewport,
             rebuild_swapchain,
+            frag_uniform_buffer,
         }
     }
     
@@ -240,7 +314,10 @@ impl RendererState {
             command_buffer.set_viewports(0, &[self.viewport.clone()]);
             command_buffer.set_scissors(0, &[self.viewport.rect.clone()]);
             command_buffer.bind_graphics_pipeline(self.object_pso.pipeline.as_ref().unwrap());
-            command_buffer.bind_vertex_buffer(0);
+            command_buffer.bind_vertex_buffers(
+                0,
+                Some((self.vertex_buffer.buffer.as_ref().unwrap(), 0)),
+            );
             {
                 let mut encoder = command_buffer.begin_render_pass_inline(
                     self.render_pass_state.render_pass.as_ref().unwrap(),

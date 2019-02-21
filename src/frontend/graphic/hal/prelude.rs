@@ -19,6 +19,7 @@ pub use gfx_hal::{
         DepthTest, Descriptor, DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorSetWrite,
         DescriptorType, Element, EntryPoint, GraphicsPipelineDesc, GraphicsShaderSet,
         PipelineStage, Rasterizer, Rect, ShaderStageFlags, StencilTest, VertexBufferDesc, Viewport,
+        VertexInputRate
     },
     command::{
         CommandBuffer,

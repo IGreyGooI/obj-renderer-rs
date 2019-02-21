@@ -9,19 +9,19 @@ use std::{
 };
 
 pub struct UniformBuffer<U: Sized + Copy> {
-    buffer: Option<<B as TB>::Buffer>,
-    memory: Option<<B as TB>::Memory>,
+    pub buffer: Option<<B as TB>::Buffer>,
+    pub memory: Option<<B as TB>::Memory>,
     device_state: Rc<RefCell<DeviceState>>,
     _phantom_data: PhantomData<U>,
 }
 
 impl<U: Sized + Copy> UniformBuffer<U> {
     pub fn new(device_state: Rc<RefCell<DeviceState>>,
-               adapter: Adapter<B>,
+               adapter: &Adapter<B>,
                items: Vec<U>,
-               stage: PipelineStage,
+               _stage: PipelineStage,
     ) -> UniformBuffer<U> {
-        let physical_device = adapter.physical_device;
+        let physical_device = &adapter.physical_device;
         
         let memory_types = physical_device.memory_properties().memory_types;
         
@@ -60,8 +60,8 @@ impl<U: Sized + Copy> Drop for UniformBuffer<U> {
 }
 
 pub struct VertexBuffer<V: Sized + Copy> {
-    buffer: Option<<B as TB>::Buffer>,
-    memory: Option<<B as TB>::Memory>,
+    pub buffer: Option<<B as TB>::Buffer>,
+    pub memory: Option<<B as TB>::Memory>,
     device_state: Rc<RefCell<DeviceState>>,
     _phantom_data: PhantomData<V>,
 }
