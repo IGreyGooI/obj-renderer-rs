@@ -7,23 +7,27 @@ build = "build.rs"
 
 [dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"   
+rev = "ea4683d1"
 
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
+rev = "ea4683d1"
 
 [dependencies.gfx-backend-dx12]
 git = "https://github.com/gfx-rs/gfx"
+rev = "ea4683d1"
 
 [dependencies.obj]
 git = "https://github.com/IGreyGooI/obj"
 
 [dependencies]
-image = "0.21.0"
+image = "0.19"
 winit = "0.18.1"
 glutin = "0.19.0"
 ron = "0.4.1"
 specs = "0.14.3"
 cgmath = "0.17.0"
+time = "0.1.42"
 
 [build-dependencies]
 glsl-to-spirv = "0.1.7"

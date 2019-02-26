@@ -1,14 +1,10 @@
-use super::{
-    render_pass::RenderPassState,
-    device::DeviceState,
-    prelude::*,
-    shader_module::ShaderModuleState,
-    descriptor_set_layout::DescriptorSetLayoutState,
-};
 use std::{
-    rc::Rc,
     cell::RefCell,
+    rc::Rc,
 };
+use std::borrow::Borrow;
+use std::iter;
+
 use crate::{
     lib::{
         resource::{
@@ -18,8 +14,14 @@ use crate::{
     }
 };
 use crate::frontend::graphic::data_type::*;
-use std::iter;
 
+use super::{
+    descriptor::DescriptorState,
+    device::DeviceState,
+    prelude::*,
+    render_pass::RenderPassState,
+    shader_module::ShaderModuleState,
+};
 
 pub struct ObjectPso {
     device_state: Rc<RefCell<DeviceState>>,
@@ -32,30 +34,34 @@ impl ObjectPso {
     pub fn new(
         device_state: Rc<RefCell<DeviceState>>,
         render_pass: &<B as TB>::RenderPass,
-        descriptor_set_layout_state: &DescriptorSetLayoutState,
+        descriptor_states: Vec<&DescriptorState>,
         gfs: &mut GemFileSystem<u8>,
-    ) -> Self {
-        let descriptor_set_layout = descriptor_set_layout_state
-            .descriptor_set_layout
-            .as_ref()
-            .unwrap();
+    ) -> Self
+    {
+        let descriptor_set_layouts: Vec<&<B as TB>::DescriptorSetLayout> =
+            descriptor_states.into_iter().filter(|descriptor_state|
+                descriptor_state.descriptor_set_layout.is_some()).map(
+                |descriptor_state| {
+                    descriptor_state.descriptor_set_layout.as_ref().unwrap()
+                }).collect();
+        
         
         let pipeline_layout = unsafe {
-            let device = &device_state.borrow().device;
+            let device = &device_state.borrow_mut().device;
             device.create_pipeline_layout(
-                iter::once(descriptor_set_layout),
-                &[]
+                descriptor_set_layouts,
+                &[],
             )
         }.unwrap();
-        
-        let mut vertex_shader_module = {
+    
+        let vertex_shader_module = {
             let spirv = gfs
                 .load("shaders/gen/object.vert.spv".to_string())
                 .expect("Cannot load shader");
             ShaderModuleState::new(device_state.clone(), spirv)
         };
-        
-        let mut fragment_shader_module = {
+    
+        let fragment_shader_module = {
             let spirv = gfs
                 .load("shaders/gen/object.frag.spv".to_string())
                 .expect("Cannot load shader");
@@ -63,7 +69,7 @@ impl ObjectPso {
         };
         
         let pipeline = unsafe {
-            let device = &device_state.borrow().device;
+            let device = &device_state.borrow_mut().device;
             
             let vs_entry = EntryPoint {
                 entry: "main",
@@ -92,20 +98,21 @@ impl ObjectPso {
             
             let mut pipeline_desc = GraphicsPipelineDesc::new(
                 shader_set,
-                Primitive::TriangleStrip,
+                Primitive::TriangleList,
                 Rasterizer::FILL,
                 &pipeline_layout,
                 subpass,
             );
-            
+    
+            // what does Blending do?
             pipeline_desc
                 .blender
                 .targets
-// what does Blending do?
                 .push(ColorBlendDesc {
                     0: ColorMask::ALL,
                     1: BlendState::ALPHA,
                 });
+    
             pipeline_desc.vertex_buffers.push(
                 VertexBufferDesc {
                     binding: 0,
@@ -119,7 +126,7 @@ impl ObjectPso {
                     location: 0,
                     binding: 0,
                     element: Element {
-                        format: Format::Rgba32Float,
+                        format: Format::Rgb32Sfloat,
                         offset: 0,
                     },
                 }
@@ -129,8 +136,8 @@ impl ObjectPso {
                     location: 1,
                     binding: 0,
                     element: Element {
-                        format: Format::Rgb32Float,
-                        offset: 16,
+                        format: Format::Rgb32Sfloat,
+                        offset: 12,
                     },
                 }
             );
@@ -139,8 +146,8 @@ impl ObjectPso {
                     location: 2,
                     binding: 0,
                     element: Element {
-                        format: Format::Rgb32Float,
-                        offset: 28,
+                        format: Format::Rgb32Sfloat,
+                        offset: 24,
                     },
                 }
             );
@@ -149,14 +156,14 @@ impl ObjectPso {
                     location: 3,
                     binding: 0,
                     element: Element {
-                        format: Format::Rg32Float,
-                        offset: 40,
+                        format: Format::Rg32Sfloat,
+                        offset: 36,
                     },
                 }
             );
-            
-            device
-                .create_graphics_pipeline(&pipeline_desc, None)
+    
+    
+            device.create_graphics_pipeline(&pipeline_desc, None)
         }.unwrap();
         
         ObjectPso {
@@ -171,7 +178,7 @@ impl ObjectPso {
 impl Drop for ObjectPso {
     fn drop(&mut self) {
         unsafe {
-            let device = &self.device_state.borrow().device;
+            let device = &self.device_state.borrow_mut().device;
             if let Some(pipeline) = self.pipeline.take() {
                 device.destroy_graphics_pipeline(pipeline);
             }

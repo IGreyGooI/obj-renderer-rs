@@ -1,23 +1,23 @@
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Vertex {
-    position: [f32; 3],
-    normal: [f32; 3],
-    tangent: [f32; 3],
-    texture: [f32; 2],
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub tangent: [f32; 3],
+    pub texture: [f32; 2],
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct VertUniformBlock {
-    projection_matrix: [[f32; 4]; 4],
-    model_view_matrix: [[f32; 4]; 4],
-    normal_matrix: [[f32; 3]; 3],
-    light_position: [f32; 3],
+    pub projection_matrix: [[f32; 4]; 4],
+    pub model_view_matrix: [[f32; 4]; 4],
+    pub normal_matrix: [[f32; 3]; 3],
+    pub light_position: [f32; 3],
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FragUniformBlock {
-    ambient_light: [f32; 4],
+    pub ambient_light: [f32; 4],
 }

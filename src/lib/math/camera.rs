@@ -1,5 +1,5 @@
-use super::geometry::PerspectiveProjectionMatrix as PPM;
 use super::geometry::NormalPerspectiveProjectionMatrix as NPPM;
+use super::geometry::PerspectiveProjectionMatrix as PPM;
 
 #[derive(Debug)]
 pub struct Camera {
@@ -30,7 +30,7 @@ impl Camera {
             normal: cgmath::Matrix3::look_at(
                 center - eye,
                 cgmath::Vector3::unit_y(),
-            )
+            ),
         }
     }
     
@@ -40,7 +40,7 @@ impl Camera {
                 let fovy = cgmath::Deg { 0: 90.0 };
                 let aspect = 16.0 / 9.0;
                 let near = 1.0;
-                let far = 20.0;
+                let far = 100.0;
                 cgmath::perspective(fovy, aspect, near, far)
             },
             view: cgmath::Matrix4::look_at(
@@ -51,7 +51,7 @@ impl Camera {
             normal: cgmath::Matrix3::look_at(
                 center - eye,
                 cgmath::Vector3::unit_y(),
-            )
+            ),
         }
     }
 }

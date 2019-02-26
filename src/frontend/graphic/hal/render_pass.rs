@@ -1,11 +1,12 @@
 use std::{
+    cell::RefCell,
     rc::Rc,
-    cell::RefCell
 };
+
 use super::{
     device::DeviceState,
     prelude::*,
-    swapchain::SwapchainState
+    swapchain::SwapchainState,
 };
 
 pub struct RenderPassState {
@@ -14,15 +15,18 @@ pub struct RenderPassState {
 }
 
 impl RenderPassState {
-    pub fn new(swapchain_state: &SwapchainState, device_state: Rc<RefCell<DeviceState>>) -> Self {
+    pub fn new(device_state: Rc<RefCell<DeviceState>>, swapchain_state: &SwapchainState) -> Self {
         let render_pass =
             unsafe {
                 let color_attachment = Attachment {
                     format: Some(swapchain_state.format),
                     samples: 1,
-                    ops: AttachmentOps::new(AttachmentLoadOp::Clear, AttachmentStoreOp::Store),
+                    ops: AttachmentOps::new(
+                        AttachmentLoadOp::Clear,
+                        AttachmentStoreOp::Store,
+                    ),
                     stencil_ops: AttachmentOps::DONT_CARE,
-                    layouts: Layout::Preinitialized..Layout::Present,
+                    layouts: Layout::Undefined..Layout::Present,
                 };
                 
                 let subpass = SubpassDesc {

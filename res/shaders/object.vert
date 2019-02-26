@@ -1,18 +1,17 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(binding = 0) uniform UniformBlock {
+layout(location = 0) in vec3 vPosition;
+layout(location = 1) in vec3 vNormal;
+layout(location = 2) in vec3 vTangent;
+layout(location = 3) in vec2 vTexCoord;
+
+layout(binding = 1) uniform UniformBlock {
     mat4 projection_matrix;
     mat4 view_matrix;
     mat3 normal_matrix;
     vec3 light_position;
 } uniform_block;
-
-
-layout(location = 0) in vec3 vPosition;
-layout(location = 1) in vec3 vNormal;
-layout(location = 2) in vec3 vTangent;
-layout(location = 3) in vec2 vTexCoord;
 
 layout(location = 0) out vec3 fView;
 layout(location = 1) out vec3 fLight;
