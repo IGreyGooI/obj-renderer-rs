@@ -379,7 +379,7 @@ impl SampledImageState {
             device
                 .create_sampler(
                     image::SamplerInfo::new(
-                        image::Filter::Linear,
+                        image::Filter::Nearest,
                         image::WrapMode::Clamp,
                     )
                 )

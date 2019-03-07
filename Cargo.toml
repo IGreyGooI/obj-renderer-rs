@@ -28,6 +28,8 @@ ron = "0.4.1"
 specs = "0.14.3"
 cgmath = "0.17.0"
 time = "0.1.42"
+glsl-to-spirv = "0.1.7"
+sha2 = "0.8.0"
 
 [build-dependencies]
 glsl-to-spirv = "0.1.7"

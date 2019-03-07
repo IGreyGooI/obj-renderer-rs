@@ -17,8 +17,8 @@ layout(location = 0) out vec4 fColor;
 void main()
 {
     // Sample the textures.
-    vec4 normal = texture(sampler2D(NormalTexture, NormalTextureSampler),   fTexCoord);
-    vec4 diffuse = texture(sampler2D(DiffuseTexture, DiffuseTextureSampler),  fTexCoord);
+    vec4 normal = texture(sampler2D(NormalTexture, NormalTextureSampler), fTexCoord);
+    vec4 diffuse = texture(sampler2D(DiffuseTexture, DiffuseTextureSampler), fTexCoord);
     vec4 specular = texture(sampler2D(SpecularTexture, SpecularTextureSampler), fTexCoord);
 
     // Determine the per-fragment lighting vectors.
@@ -30,7 +30,7 @@ void main()
 
     // Compute the diffuse shading.
 
-    float kd =     max(dot(L, N), 0.0);
+    float kd = max(dot(L, N), 0.0);
     float ks = pow(max(dot(V, R), 0.0), 8.0);
 
     // Calculate the fragment color.

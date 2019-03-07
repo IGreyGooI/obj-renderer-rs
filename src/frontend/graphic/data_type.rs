@@ -12,7 +12,7 @@ pub struct Vertex {
 pub struct VertUniformBlock {
     pub projection_matrix: [[f32; 4]; 4],
     pub model_view_matrix: [[f32; 4]; 4],
-    pub normal_matrix: [[f32; 3]; 3],
+    pub normal_matrix: [[f32; 4]; 4],
     pub light_position: [f32; 3],
 }
 

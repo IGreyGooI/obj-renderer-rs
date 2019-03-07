@@ -10,6 +10,7 @@ use ::image::{ImageBuffer, ImageFormat, load, Pixel, Rgba};
 use backend;
 use gfx_hal::buffer::IndexBufferView;
 use gfx_hal::IndexType;
+use glsl_to_spirv::ShaderType;
 use obj::{
     IndexTuple,
     Obj,
@@ -71,6 +72,10 @@ pub struct RendererState {
     diffuse_descriptor_pool_state: DescriptorPoolState,
     specular_descriptor_pool_state: DescriptorPoolState,
     vert_uniform_descriptor_pool_state: DescriptorPoolState,
+    
+    normal_image_state: SampledImageState,
+    diffuse_image_state: SampledImageState,
+    specular_image_state: SampledImageState,
     
     gfs: GemFileSystem<u8>,
     object_pso: ObjectPso,
@@ -540,8 +545,11 @@ impl RendererState {
             diffuse_descriptor_state,
             specular_descriptor_state,
             vert_uniform_descriptor_pool_state,
+            normal_image_state,
+            diffuse_image_state,
             frame_buffer_state,
             //indices_buffer,
+            specular_image_state,
         }
     }
     
@@ -725,4 +733,49 @@ impl RendererState {
             depth: 0.0..1.0,
         }
     }
+}
+
+
+enum RebuildError {
+    Unspecified
+}
+
+
+fn try_rebuild_shader() -> Result<(), RebuildError> {
+    for entry in std::fs::read_dir("res/shaders").unwrap() {
+        let entry = entry.unwrap();
+        
+        if entry.file_type().unwrap().is_file() {
+            let in_path = entry.path();
+            
+            // Support only vertex and fragment shaders currently
+            let some_shader_type =
+                in_path
+                    .extension()
+                    .and_then(|ext| match ext.to_string_lossy().as_ref() {
+                        "vert" => Some(ShaderType::Vertex),
+                        "frag" => Some(ShaderType::Fragment),
+                        _ => None,
+                    }
+                    );
+            
+            if let Some(shader_type) = some_shader_type {
+                use std::io::Read;
+                
+                let source = std::fs::read_to_string(&in_path).unwrap();
+                let mut compiled_file = glsl_to_spirv::compile(&source, shader_type).unwrap();
+                
+                let mut compiled_bytes = Vec::new();
+                compiled_file.read_to_end(&mut compiled_bytes).unwrap();
+                
+                let out_path = format!(
+                    "res/shaders/gen/{}.spv",
+                    in_path.file_name().unwrap().to_string_lossy()
+                );
+                
+                std::fs::write(&out_path, &compiled_bytes).unwrap();
+            }
+        }
+    };
+    Ok(())
 }
