@@ -19,7 +19,7 @@ impl RenderPassState {
         let render_pass =
             unsafe {
                 let color_attachment = Attachment {
-                    format: Some(swapchain_state.format),
+                    format: Some(swapchain_state.color_format),
                     samples: 1,
                     ops: AttachmentOps::new(
                         AttachmentLoadOp::Clear,
@@ -28,10 +28,18 @@ impl RenderPassState {
                     stencil_ops: AttachmentOps::DONT_CARE,
                     layouts: Layout::Undefined..Layout::Present,
                 };
+    
+                let depth_attachment = Attachment {
+                    format: Some(swapchain_state.depth_format),
+                    samples: 1,
+                    ops: AttachmentOps::new(AttachmentLoadOp::Clear, AttachmentStoreOp::DontCare),
+                    stencil_ops: AttachmentOps::DONT_CARE,
+                    layouts: Layout::Undefined..Layout::DepthStencilAttachmentOptimal,
+                };
                 
                 let subpass = SubpassDesc {
                     colors: &[(0, Layout::ColorAttachmentOptimal)],
-                    depth_stencil: None,
+                    depth_stencil: Some(&(1, Layout::DepthStencilAttachmentOptimal)),
                     inputs: &[],
                     resolves: &[],
                     preserves: &[],
@@ -44,9 +52,12 @@ impl RenderPassState {
                     accesses: Access::empty()
                         ..(Access::COLOR_ATTACHMENT_READ | Access::COLOR_ATTACHMENT_WRITE),
                 };
-                
-                device_state.borrow().device.create_render_pass
-                (&[color_attachment], &[subpass], &[dependency])
+    
+                device_state.borrow().device.create_render_pass(
+                    &[color_attachment, depth_attachment],
+                    &[subpass],
+                    &[dependency],
+                )
             }.unwrap();
         
         RenderPassState {

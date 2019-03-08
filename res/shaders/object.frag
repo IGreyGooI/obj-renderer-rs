@@ -26,15 +26,17 @@ void main()
     vec3 N = normalize(2.0 * normal.xyz - 1.0);
     vec3 L = normalize(fLight);
     vec3 V = normalize(fView);
-    vec3 R = reflect(L, N);
+    vec3 R = reflect(V, N);
 
     // Compute the diffuse shading.
 
     float kd = max(dot(L, N), 0.0);
-    float ks = pow(max(dot(V, R), 0.0), 8.0);
+    float ks = pow(max(dot(L, R), 0.0), 8.0);
 
     // Calculate the fragment color.
 
-    fColor.rgb = vec3(kd * diffuse + specular * ks);
-    fColor.a   = diffuse.a;
+    //fColor.rgb = vec3(kd * diffuse + specular * ks);
+    //fColor.a   = diffuse.a;
+
+    fColor = diffuse;
 }

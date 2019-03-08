@@ -85,18 +85,24 @@ impl GemFileSystem<u8> {
     pub fn fetch_and_cache_file(&mut self, file_name: &String) -> Option<Box<[u8]>> {
         let mut path = self.root.clone();
         let vec_string: Vec<&str> = file_name.split("/").collect();
-        println!("{:#?}", vec_string);
+        dbg!(vec_string.clone());
         for string in vec_string {
             path.push(string);
         }
-        println!("{:#?}", path);
-    
+        dbg!(path.clone());
+        
         match path.exists() & &path.is_file() {
             true => {
                 let file_ptr = util::load_file_as_u8(&path);
                 self.cache.indexer.insert(
                     file_name.clone(),
                     file_ptr.clone(),
+                );
+                let hash = process::<Sha256, _>(&mut Cursor::new(&file_ptr));
+                dbg!(hash.clone());
+                self.cache.sha_2.insert(
+                    file_name.clone(),
+                    hash,
                 );
                 Some(file_ptr)
             }

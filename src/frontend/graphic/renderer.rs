@@ -124,6 +124,7 @@ impl RendererState {
     
         let frame_buffer_state = FrameBufferState::new(
             device_state.clone(),
+            &adapter_state,
             &render_pass_state,
             &mut swapchain_state,
         );
@@ -362,7 +363,11 @@ impl RendererState {
                             position: chest_obj.position[face.0],
                             normal: chest_obj.normal[face.2.unwrap()],
                             tangent: chest_obj.normal[face.2.unwrap()],
-                            texture: chest_obj.texture[face.1.unwrap()],
+                            texture:
+                            [
+                                chest_obj.texture[face.1.unwrap()][0],
+                                1.0 - chest_obj.texture[face.1.unwrap()][1]
+                            ],
                         });
                     }
                     match vertex_for_this_face.len() {
@@ -571,6 +576,7 @@ impl RendererState {
         );
         self.frame_buffer_state = FrameBufferState::new(
             self.device_state.clone(),
+            &self.adapter_state,
             &self.render_pass_state,
             self.swapchain_state.as_mut().unwrap(),
         );
@@ -690,7 +696,8 @@ impl RendererState {
                     self.render_pass_state.render_pass.as_ref().unwrap(),
                     frame_buffer,
                     self.viewport.rect.clone(),
-                    &[ClearValue::Color(ClearColor::Float([0.0, 0.0, 0.0, 1.0]))],
+                    &[ClearValue::Color(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
+                        ClearValue::DepthStencil(ClearDepthStencil(1.0, 0))],
                 );
     
                 encoder.draw(

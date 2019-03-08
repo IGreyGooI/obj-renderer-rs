@@ -17,6 +17,10 @@ layout(location = 0) out vec3 fView;
 layout(location = 1) out vec3 fLight;
 layout(location = 2) out vec2 fTexCoord;
 
+out gl_PerVertex {
+  vec4 gl_Position;
+};
+
 void main()
 {
     // Tangent space vectors give the columns of the eye-to-tangent transform.

@@ -5,7 +5,7 @@
 #![allow(dead_code, unused_extern_crates, unused_imports)]
 #![feature(naked_functions)]
 
-extern crate gfx_backend_dx12 as backend;
+extern crate gfx_backend_vulkan as backend;
 #[macro_use]
 extern crate gfx_hal;
 extern crate glsl_to_spirv;

@@ -162,6 +162,14 @@ impl ObjectPso {
                 }
             );
     
+            pipeline_desc.depth_stencil = DepthStencilDesc {
+                depth: DepthTest::On {
+                    fun: Comparison::Less,
+                    write: true,
+                },
+                depth_bounds: false,
+                stencil: StencilTest::default(),
+            };
     
             device.create_graphics_pipeline(&pipeline_desc, None)
         }.unwrap();

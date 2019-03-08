@@ -17,7 +17,8 @@ pub struct SwapchainState {
     pub swapchain: Option<<B as TB>::Swapchain>,
     pub backbuffer: Option<Backbuffer<B>>,
     pub extent: Extent,
-    pub format: Format,
+    pub color_format: Format,
+    pub depth_format: Format,
 }
 
 impl SwapchainState {
@@ -31,18 +32,21 @@ impl SwapchainState {
             surface.compatibility(&adapter.adapter.physical_device);
         println!("[INFO][Formats]{:?}", formats);
     
-        let format = select_surface_color_format(formats);
-        println!("[INFO][Chosen Surface Format] {:?}", format);
+        let color_format = select_surface_color_format(formats);
+        println!("[INFO][Chosen Surface Format] {:?}", color_format);
     
+        let depth_format = Format::D32SfloatS8Uint;
+        println!("[INFO][Chosen Depth Format] {:?}", depth_format);
+        
         let swap_config =
-            SwapchainConfig::from_caps(&caps, format, extent);
-    
+            SwapchainConfig::from_caps(&caps, color_format, extent);
+        
         let extent = swap_config.extent.to_extent();
     
         let (swapchain, backbuffer) =
             unsafe {
                 let device = &device_state.borrow().device;
-            
+    
                 device
                     .create_swapchain(
                         surface,
@@ -56,7 +60,8 @@ impl SwapchainState {
             backbuffer: Some(backbuffer),
             device_state,
             extent,
-            format,
+            color_format,
+            depth_format,
         }
     }
 }
@@ -80,6 +85,9 @@ pub struct FrameBufferState {
     pub frame_image_views: Option<Vec<<B as TB>::ImageView>>,
     pub acquire_semaphores: Option<Vec<<B as TB>::Semaphore>>,
     pub present_semaphores: Option<Vec<<B as TB>::Semaphore>>,
+    pub depth_image: Option<<B as TB>::Image>,
+    pub depth_image_memory: Option<<B as TB>::Memory>,
+    pub depth_image_view: Option<<B as TB>::ImageView>,
     pub current_index: usize,
     pub last_index: usize,
     pub device_state: Rc<RefCell<DeviceState>>,
@@ -88,19 +96,78 @@ pub struct FrameBufferState {
 impl FrameBufferState {
     pub fn new(
         device_state: Rc<RefCell<DeviceState>>,
+        adapter_state: &AdapterState,
         render_pass: &RenderPassState,
         swapchain: &mut SwapchainState,
     ) -> Self {
+        let extent = Extent {
+            width: swapchain.extent.width as _,
+            height: swapchain.extent.height as _,
+            depth: 1,
+        };
+    
+    
+        let (depth_image, depth_image_memory, depth_image_view) = unsafe {
+            let device = &device_state.borrow().device;
+        
+            let kind =
+                image::Kind::D2(extent.width as image::Size, extent.height as
+                    image::Size, 1, 1);
+        
+            let mut depth_image = device
+                .create_image(
+                    kind,
+                    1,
+                    swapchain.depth_format,
+                    image::Tiling::Optimal,
+                    image::Usage::DEPTH_STENCIL_ATTACHMENT,
+                    ViewCapabilities::empty(),
+                )
+                .expect("Failed to create unbound depth image");
+        
+            let image_req = device.get_image_requirements(&depth_image);
+        
+            let device_type = adapter_state.memory_types
+                                           .iter()
+                                           .enumerate()
+                                           .position(|(id, memory_type)| {
+                                               image_req.type_mask & (1 << id) != 0
+                                                   && memory_type.properties.contains(Properties::DEVICE_LOCAL)
+                                           })
+                                           .unwrap()
+                                           .into();
+        
+            let depth_image_memory = device
+                .allocate_memory(device_type, image_req.size)
+                .expect("Failed to allocate depth image");
+        
+            device
+                .bind_image_memory(&depth_image_memory, 0, &mut depth_image)
+                .expect("Failed to bind depth image");
+        
+            let depth_image_view = device
+                .create_image_view(
+                    &depth_image,
+                    image::ViewKind::D2,
+                    swapchain.depth_format,
+                    Swizzle::NO,
+                    image::SubresourceRange {
+                        aspects: Aspects::DEPTH | Aspects::STENCIL,
+                        levels: 0..1,
+                        layers: 0..1,
+                    },
+                )
+                .expect("Failed to create image view");
+        
+            (depth_image, depth_image_memory, depth_image_view)
+        };
+        
         let (frame_images, frame_image_views, frame_buffers) = {
             let device = &device_state.borrow().device;
+    
+    
             match swapchain.backbuffer.take().unwrap() {
                 Backbuffer::Images(frame_images) => {
-                    let extent = Extent {
-                        width: swapchain.extent.width as _,
-                        height: swapchain.extent.height as _,
-                        depth: 1,
-                    };
-                    
                     let frame_image_views =
                         frame_images
                             .iter()
@@ -109,19 +176,20 @@ impl FrameBufferState {
                                     device.create_image_view(
                                         &image,
                                         ViewKind::D2,
-                                        swapchain.format,
+                                        swapchain.color_format,
                                         Swizzle::NO,
                                         COLOR_RANGE.clone(),
                                     )
                                 }.unwrap();
                                 frame_image_view
                             }).collect::<Vec<_>>();
+    
                     let frame_buffers = frame_image_views.iter().map(
                         |image_view| {
                             unsafe {
                                 device.create_framebuffer(
                                     render_pass.render_pass.as_ref().unwrap(),
-                                    Some(image_view),
+                                    vec![image_view, &depth_image_view],
                                     extent,
                                 )
                             }.unwrap()
@@ -172,10 +240,13 @@ impl FrameBufferState {
             frame_buffer_fences: Some(fences),
             command_pools: Some(command_pools),
             present_semaphores: Some(present_semaphores),
+            depth_image: Some(depth_image),
+            depth_image_memory: Some(depth_image_memory),
             acquire_semaphores: Some(acquire_semaphores),
             device_state,
             current_index: 0,
             last_index: 0,
+            depth_image_view: Some(depth_image_view)
         }
     }
     
