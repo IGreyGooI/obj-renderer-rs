@@ -1,10 +1,11 @@
-use super::{
-    prelude::*,
-    device::DeviceState,
-};
 use std::{
-    rc::Rc,
     cell::RefCell,
+    rc::Rc,
+};
+
+use super::{
+    device::DeviceState,
+    prelude::*,
 };
 
 pub struct ShaderModuleState {
@@ -16,7 +17,7 @@ pub struct ShaderModuleState {
 impl ShaderModuleState {
     pub fn new(
         device_state: Rc<RefCell<DeviceState>>,
-        spirv: Box<[u8]>,
+        spirv: &Box<[u8]>,
     ) -> ShaderModuleState {
         let module = unsafe {
             let device = &device_state.borrow().device;

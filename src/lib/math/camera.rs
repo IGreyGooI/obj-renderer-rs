@@ -1,4 +1,4 @@
-use cgmath::{Matrix, Matrix4, Point3, Transform};
+use cgmath::{Matrix, Matrix4, Point3, Transform, Zero};
 
 #[derive(Debug)]
 pub struct Camera {
@@ -48,9 +48,9 @@ impl Camera {
     
     pub fn perspective(center: cgmath::Point3<f32>, eye: cgmath::Point3<f32>) -> Camera {
         let projection = {
-            let fovy = cgmath::Deg { 0: 90.0 };
+            let fovy = cgmath::Deg { 0: 70.0 };
             let aspect = 16.0 / 9.0;
-            let near = 1.0;
+            let near = 0.1;
             let far = 100.0;
             cgmath::perspective(fovy, aspect, near, far)
         };
@@ -58,7 +58,7 @@ impl Camera {
         let view = cgmath::Matrix4::look_at(
             eye,
             center,
-            cgmath::Vector3::unit_y(),
+            cgmath::Vector3::zero() - cgmath::Vector3::unit_y(),
         );
         
         let normal = {

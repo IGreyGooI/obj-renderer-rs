@@ -5,14 +5,8 @@ use std::{
 use std::borrow::Borrow;
 use std::iter;
 
-use crate::{
-    lib::{
-        resource::{
-            gfs::GemFileSystem,
-            ReadFile,
-        }
-    }
-};
+use gfs::{GemFileSystem, ReadFile};
+
 use crate::frontend::graphic::data_type::*;
 
 use super::{
@@ -35,7 +29,7 @@ impl ObjectPso {
         device_state: Rc<RefCell<DeviceState>>,
         render_pass: &<B as TB>::RenderPass,
         descriptor_states: Vec<&DescriptorState>,
-        gfs: &mut GemFileSystem<u8>,
+        gfs: &mut GemFileSystem,
     ) -> Self
     {
         let descriptor_set_layouts: Vec<&<B as TB>::DescriptorSetLayout> =
@@ -56,14 +50,14 @@ impl ObjectPso {
     
         let vertex_shader_module = {
             let spirv = gfs
-                .load("shaders/gen/object.vert.spv".to_string())
+                .read_file("shaders/gen/object.vert.spv".to_string())
                 .expect("Cannot load shader");
             ShaderModuleState::new(device_state.clone(), spirv)
         };
     
         let fragment_shader_module = {
             let spirv = gfs
-                .load("shaders/gen/object.frag.spv".to_string())
+                .read_file("shaders/gen/object.frag.spv".to_string())
                 .expect("Cannot load shader");
             ShaderModuleState::new(device_state.clone(), spirv)
         };

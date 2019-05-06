@@ -8,9 +8,10 @@ use std::io::Cursor;
 
 use ::image::{ImageBuffer, ImageFormat, load, Pixel, Rgba};
 use backend;
+use gfs::{GemFileSystem, ReadFile};
 use gfx_hal::buffer::IndexBufferView;
+use gfx_hal::command::{CommandBufferFlags, CommandBufferInheritanceInfo};
 use gfx_hal::IndexType;
-use glsl_to_spirv::ShaderType;
 use obj::{
     IndexTuple,
     Obj,
@@ -19,8 +20,9 @@ use obj::{
 use crate::{
     frontend::{
         graphic::{
-            data_type::*,
             hal::{
+                image::SampledImageState,
+                adapter::AdapterState,
                 render_pass::RenderPassState,
                 pipeline::ObjectPso,
                 swapchain::{SwapchainState,
@@ -33,15 +35,17 @@ use crate::{
                 },
                 buffer::BufferState,
             },
+            data_type::*,
         }
     },
-    lib::resource::gfs::GemFileSystem,
+    lib::{
+        math::{
+            camera::Camera,
+            light::PointLight,
+        },
+        util,
+    },
 };
-use crate::frontend::graphic::hal::adapter::AdapterState;
-use crate::frontend::graphic::hal::image::SampledImageState;
-use crate::lib::math::camera::Camera;
-use crate::lib::math::light::PointLight;
-use crate::lib::resource::ReadFile;
 
 use super::constants::*;
 use super::window::WindowState;
@@ -61,9 +65,10 @@ pub struct RendererState {
     // which is reflected as the order of members here!
     vertex_buffer: BufferState<Vertex>,
     vert_uniform_buffer: BufferState<VertUniformBlock>,
+    frag_uniform_buffer: BufferState<FragUniformBlock>,
     //indices_buffer: BufferState<u32>,
-    
-    vert_uniform_descriptor_state: DescriptorState,
+
+    uniform_descriptor_state: DescriptorState,
     normal_descriptor_state: DescriptorState,
     diffuse_descriptor_state: DescriptorState,
     specular_descriptor_state: DescriptorState,
@@ -71,13 +76,13 @@ pub struct RendererState {
     normal_descriptor_pool_state: DescriptorPoolState,
     diffuse_descriptor_pool_state: DescriptorPoolState,
     specular_descriptor_pool_state: DescriptorPoolState,
-    vert_uniform_descriptor_pool_state: DescriptorPoolState,
+    uniform_descriptor_pool_state: DescriptorPoolState,
     
     normal_image_state: SampledImageState,
     diffuse_image_state: SampledImageState,
     specular_image_state: SampledImageState,
     
-    gfs: GemFileSystem<u8>,
+    gfs: GemFileSystem,
     object_pso: ObjectPso,
     render_pass_state: RenderPassState,
     swapchain_state: Option<SwapchainState>,
@@ -105,10 +110,14 @@ impl RendererState {
                 DeviceState::new(&adapter_state, &surface)
             )
         );
-        
+    
+        let root = util::application_root::application_root_dir().unwrap();
+    
+        dbg!(root.clone());
         let mut gfs = GemFileSystem::new(
-            &concat!(env!("CARGO_MANIFEST_DIR"), "\\res")
+            root.join(&"res")
         );
+    
     
         let mut swapchain_state = SwapchainState::new(
             device_state.clone(),
@@ -129,12 +138,12 @@ impl RendererState {
             &mut swapchain_state,
         );
     
-        let mut vert_uniform_descriptor_pool_state = DescriptorPoolState::new(
+        let mut uniform_descriptor_pool_state = DescriptorPoolState::new(
             device_state.clone(),
             &[
                 DescriptorRangeDesc {
                     ty: DescriptorType::UniformBuffer,
-                    count: 1,
+                    count: 2,
                 }
             ],
         );
@@ -142,51 +151,48 @@ impl RendererState {
             device_state.clone(),
             &[
                 DescriptorRangeDesc {
-                    ty: DescriptorType::SampledImage,
+                    ty: DescriptorType::CombinedImageSampler,
                     count: 1,
                 },
-                DescriptorRangeDesc {
-                    ty: DescriptorType::Sampler,
-                    count: 1,
-                }
             ],
         );
         let mut normal_descriptor_pool_state = DescriptorPoolState::new(
             device_state.clone(),
             &[
                 DescriptorRangeDesc {
-                    ty: DescriptorType::SampledImage,
+                    ty: DescriptorType::CombinedImageSampler,
                     count: 1,
                 },
-                DescriptorRangeDesc {
-                    ty: DescriptorType::Sampler,
-                    count: 1,
-                }
             ],
         );
         let mut specular_descriptor_pool_state = DescriptorPoolState::new(
             device_state.clone(),
             &[
                 DescriptorRangeDesc {
-                    ty: DescriptorType::SampledImage,
+                    ty: DescriptorType::CombinedImageSampler,
                     count: 1,
                 },
-                DescriptorRangeDesc {
-                    ty: DescriptorType::Sampler,
-                    count: 1,
-                }
             ],
         );
-        let mut vert_uniform_descriptor_state = DescriptorState::new(
+        let mut uniform_descriptor_state = DescriptorState::new(
             device_state.clone(),
             &[
+                DescriptorSetLayoutBinding {
+                    binding: 0,
+                    ty: DescriptorType::UniformBuffer,
+                    // the following field cannot be 0 or it will panic when allocatting memory
+                    // for the DescriptorSet
+                    count: 1,
+                    stage_flags: ShaderStageFlags::VERTEX,
+                    immutable_samplers: false,
+                },
                 DescriptorSetLayoutBinding {
                     binding: 1,
                     ty: DescriptorType::UniformBuffer,
                     // the following field cannot be 0 or it will panic when allocatting memory
                     // for the DescriptorSet
                     count: 1,
-                    stage_flags: ShaderStageFlags::VERTEX,
+                    stage_flags: ShaderStageFlags::FRAGMENT,
                     immutable_samplers: false,
                 },
             ],
@@ -197,18 +203,11 @@ impl RendererState {
             &[
                 DescriptorSetLayoutBinding {
                     binding: 0,
-                    ty: DescriptorType::SampledImage,
+                    ty: DescriptorType::CombinedImageSampler,
                     count: 1,
                     stage_flags: ShaderStageFlags::FRAGMENT,
                     immutable_samplers: false,
                 },
-                DescriptorSetLayoutBinding {
-                    binding: 1,
-                    ty: DescriptorType::Sampler,
-                    count: 1,
-                    stage_flags: ShaderStageFlags::FRAGMENT,
-                    immutable_samplers: false,
-                }
             ],
             &[],
         );
@@ -217,18 +216,11 @@ impl RendererState {
             &[
                 DescriptorSetLayoutBinding {
                     binding: 0,
-                    ty: DescriptorType::SampledImage,
+                    ty: DescriptorType::CombinedImageSampler,
                     count: 1,
                     stage_flags: ShaderStageFlags::FRAGMENT,
                     immutable_samplers: false,
                 },
-                DescriptorSetLayoutBinding {
-                    binding: 1,
-                    ty: DescriptorType::Sampler,
-                    count: 1,
-                    stage_flags: ShaderStageFlags::FRAGMENT,
-                    immutable_samplers: false,
-                }
             ],
             &[],
         );
@@ -237,24 +229,17 @@ impl RendererState {
             &[
                 DescriptorSetLayoutBinding {
                     binding: 0,
-                    ty: DescriptorType::SampledImage,
+                    ty: DescriptorType::CombinedImageSampler,
                     count: 1,
                     stage_flags: ShaderStageFlags::FRAGMENT,
                     immutable_samplers: false,
                 },
-                DescriptorSetLayoutBinding {
-                    binding: 1,
-                    ty: DescriptorType::Sampler,
-                    count: 1,
-                    stage_flags: ShaderStageFlags::FRAGMENT,
-                    immutable_samplers: false,
-                }
             ],
             &[],
         );
     
-        vert_uniform_descriptor_state.allocate_descriptor_set(
-            &mut vert_uniform_descriptor_pool_state);
+        uniform_descriptor_state.allocate_descriptor_set(
+            &mut uniform_descriptor_pool_state);
         normal_descriptor_state.allocate_descriptor_set(
             &mut normal_descriptor_pool_state);
         diffuse_descriptor_state.allocate_descriptor_set(
@@ -273,37 +258,37 @@ impl RendererState {
         };
         
         let model_file = gfs
-            .load("models/Chest.obj".to_string())
+            .read_file(&"models/Chest.obj")
             .unwrap();
+        // need to update crate obj to take a reference
         let chest_obj: Obj<'_, Vec<IndexTuple>> = Obj::load(
-            model_file).unwrap();
-    
+            model_file.clone()).unwrap();
+        
         // here is another way to load it by using Cursor
         //let model_file = gfs.load("models/Chest.obj".to_string()).unwrap();
         //let object_sec: Obj<Vec<IndexTuple>> = Obj::load_buf(&mut Cursor::new(model_file)).unwrap();
     
         let chest_diffuse = gfs
-            .load("models/Chest-diffuse.tga".to_string())
+            .read_file(&"models/Chest-diffuse.tga")
             .unwrap();
-        let chest_normal = gfs
-            .load("models/Chest-normal.tga".to_string())
-            .unwrap();
-        let chest_specular = gfs
-            .load("models/Chest-specular.tga".to_string())
-            .unwrap();
-    
         let diffuse_image =
             load(
                 Cursor::new(chest_diffuse),
                 ImageFormat::TGA)
                 .unwrap()
                 .to_rgba();
+        let chest_normal = gfs
+            .read_file(&"models/Chest-normal.tga")
+            .unwrap();
         let normal_image =
             load(
                 Cursor::new(chest_normal),
                 ImageFormat::TGA)
                 .unwrap()
                 .to_rgba();
+        let chest_specular = gfs
+            .read_file(&"models/Chest-specular.tga")
+            .unwrap();
         let specular_image =
             load(
                 Cursor::new(chest_specular),
@@ -362,7 +347,7 @@ impl RendererState {
                         vertex_for_this_face.push(Vertex {
                             position: chest_obj.position[face.0],
                             normal: chest_obj.normal[face.2.unwrap()],
-                            tangent: chest_obj.normal[face.2.unwrap()],
+                            tangent: [0.0, 0.0, 0.0],
                             texture:
                             [
                                 chest_obj.texture[face.1.unwrap()][0],
@@ -449,17 +434,38 @@ impl RendererState {
             ],
             buffer::Usage::UNIFORM,
         );
+        let frag_uniform_buffer = BufferState::new_from_items(
+            device_state.clone(),
+            &adapter_state,
+            vec![
+                FragUniformBlock {
+                    ambient_light: [1.0, 1.0, 1.0, 0.0]
+                }
+            ],
+            buffer::Usage::UNIFORM,
+        );
         unsafe {
             let device = &device_state.borrow().device;
             device.write_descriptor_sets(
                 vec![
                     DescriptorSetWrite {
-                        set: vert_uniform_descriptor_state.descriptor_set.as_ref().unwrap(),
-                        binding: 1,
+                        set: uniform_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        binding: 0,
                         array_offset: 0,
                         descriptors: &[
                             Descriptor::Buffer(
                                 vert_uniform_buffer.buffer.as_ref().unwrap(),
+                                None..None,
+                            )
+                        ],
+                    },
+                    DescriptorSetWrite {
+                        set: uniform_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        binding: 1,
+                        array_offset: 0,
+                        descriptors: &[
+                            Descriptor::Buffer(
+                                frag_uniform_buffer.buffer.as_ref().unwrap(),
                                 None..None,
                             )
                         ],
@@ -482,7 +488,7 @@ impl RendererState {
             device_state.clone(),
             render_pass_state.render_pass.as_ref().unwrap(),
             vec![
-                &vert_uniform_descriptor_state,
+                &uniform_descriptor_state,
                 &normal_descriptor_state,
                 &diffuse_descriptor_state,
                 &specular_descriptor_state
@@ -545,16 +551,17 @@ impl RendererState {
             swapchain_state: Some(swapchain_state),
             viewport,
             rebuild_swapchain,
-            vert_uniform_descriptor_state,
+            uniform_descriptor_state,
             normal_descriptor_state,
             diffuse_descriptor_state,
             specular_descriptor_state,
-            vert_uniform_descriptor_pool_state,
+            uniform_descriptor_pool_state,
             normal_image_state,
             diffuse_image_state,
             frame_buffer_state,
             //indices_buffer,
             specular_image_state,
+            frag_uniform_buffer,
         }
     }
     
@@ -605,8 +612,8 @@ impl RendererState {
         let device_state = &mut self.device_state.borrow_mut();
         
         let semaphore_index = self.frame_buffer_state.current_index;
-        
-        // self.frame_buffer_state.increment_current_semaphores_index();
+    
+        self.frame_buffer_state.increment_current_semaphores_index();
         
         let frame_index: SwapImageIndex = {
             let acquire_semaphore =
@@ -654,63 +661,106 @@ impl RendererState {
         
         unsafe {
             let device = &device_state.device;
-            device
-                .wait_for_fence(frame_buffer_fence, !0)
-                .unwrap();
+            //device
+            //    .wait_for_fence(frame_buffer_fence, !0)
+            //    .unwrap();
             device
                 .reset_fence(frame_buffer_fence)
                 .unwrap();
     
             command_pool.reset();
-    
-            let mut command_buffer =
-                command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
-            command_buffer.begin();
-    
-            command_buffer.set_viewports(0, &[self.viewport.clone()]);
-            command_buffer.set_scissors(0, &[self.viewport.rect.clone()]);
-            command_buffer.bind_graphics_pipeline(self.object_pso.pipeline.as_ref().unwrap());
-            command_buffer.bind_vertex_buffers(
-                0,
-                Some((self.vertex_buffer.buffer.as_ref().unwrap(), 0)),
-            );
-            /*            command_buffer.bind_index_buffer(
+            let command_buffer_1 = {
+                let mut command_buffer =
+                    command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
+                command_buffer.begin();
+        
+                command_buffer.set_viewports(0, &[self.viewport.clone()]);
+                command_buffer.set_scissors(0, &[self.viewport.rect.clone()]);
+                command_buffer.bind_graphics_pipeline(self.object_pso.pipeline.as_ref().unwrap());
+                command_buffer.bind_vertex_buffers(
+                    0,
+                    Some((self.vertex_buffer.buffer.as_ref().unwrap(), 0)),
+                );
+                /*            command_buffer.bind_index_buffer(
                             IndexBufferView {
                                 buffer: self.indices_buffer.buffer.as_ref().unwrap(),
                                 offset: 0,
                                 index_type: IndexType::U32,
                             });*/
-            command_buffer.bind_graphics_descriptor_sets(
-                self.object_pso.pipeline_layout.as_ref().unwrap(),
-                0,
-                vec![
-                    self.vert_uniform_descriptor_state.descriptor_set.as_ref().unwrap(),
-                    self.normal_descriptor_state.descriptor_set.as_ref().unwrap(),
-                    self.diffuse_descriptor_state.descriptor_set.as_ref().unwrap(),
-                    self.specular_descriptor_state.descriptor_set.as_ref().unwrap(),
-                ],
-                &[],
-            );
-            {
-                let mut encoder = command_buffer.begin_render_pass_inline(
-                    self.render_pass_state.render_pass.as_ref().unwrap(),
-                    frame_buffer,
-                    self.viewport.rect.clone(),
-                    &[ClearValue::Color(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
-                        ClearValue::DepthStencil(ClearDepthStencil(1.0, 0))],
+                command_buffer.bind_graphics_descriptor_sets(
+                    self.object_pso.pipeline_layout.as_ref().unwrap(),
+                    0,
+                    vec![
+                        self.uniform_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        self.normal_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        self.diffuse_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        self.specular_descriptor_state.descriptor_set.as_ref().unwrap(),
+                    ],
+                    &[],
                 );
-    
-                encoder.draw(
-                    0..((self.vertex_buffer.size.unwrap() / ::std::mem::size_of::<Vertex>() as
-                        u64)
-                        as u32),
-                    0..1,
+                {
+                    let mut encoder = command_buffer.begin_render_pass_inline(
+                        self.render_pass_state.render_pass.as_ref().unwrap(),
+                        frame_buffer,
+                        self.viewport.rect.clone(),
+                        &[ClearValue::Color(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
+                            ClearValue::DepthStencil(ClearDepthStencil(1.0, 0))],
+                    );
+            
+                    encoder.draw(
+                        0..((self.vertex_buffer.size.unwrap() / ::std::mem::size_of::<Vertex>() as
+                            u64)
+                            as u32),
+                        0..1,
+                    );
+                }
+                command_buffer.finish();
+                command_buffer
+            };
+            let command_buffer_2 = {
+                let mut command_buffer =
+                    command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
+                command_buffer.begin();
+        
+                command_buffer.set_viewports(0, &[self.viewport.clone()]);
+                command_buffer.set_scissors(0, &[self.viewport.rect.clone()]);
+                command_buffer.bind_graphics_pipeline(self.object_pso.pipeline.as_ref().unwrap());
+                command_buffer.bind_vertex_buffers(
+                    0,
+                    Some((self.vertex_buffer.buffer.as_ref().unwrap(), 0)),
                 );
-            }
-            command_buffer.finish();
-    
+                command_buffer.bind_graphics_descriptor_sets(
+                    self.object_pso.pipeline_layout.as_ref().unwrap(),
+                    0,
+                    vec![
+                        self.uniform_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        self.normal_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        self.diffuse_descriptor_state.descriptor_set.as_ref().unwrap(),
+                        self.specular_descriptor_state.descriptor_set.as_ref().unwrap(),
+                    ],
+                    &[],
+                );
+                {
+                    let mut encoder = command_buffer.begin_render_pass_inline(
+                        self.render_pass_state.render_pass.as_ref().unwrap(),
+                        frame_buffer,
+                        self.viewport.rect.clone(),
+                        &[ClearValue::Color(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
+                            ClearValue::DepthStencil(ClearDepthStencil(1.0, 0))],
+                    );
+            
+                    encoder.draw(
+                        0..((self.vertex_buffer.size.unwrap() / ::std::mem::size_of::<Vertex>() as
+                            u64)
+                            as u32),
+                        0..1,
+                    );
+                }
+                command_buffer.finish();
+                command_buffer
+            };
             let submission = Submission {
-                command_buffers: iter::once(&command_buffer),
+                command_buffers: &[command_buffer_1, command_buffer_2],
                 wait_semaphores: iter::once((&*image_acquired, PipelineStage::BOTTOM_OF_PIPE)),
                 signal_semaphores: iter::once(&*image_present),
             };
@@ -743,46 +793,3 @@ impl RendererState {
 }
 
 
-enum RebuildError {
-    Unspecified
-}
-
-
-fn try_rebuild_shader() -> Result<(), RebuildError> {
-    for entry in std::fs::read_dir("res/shaders").unwrap() {
-        let entry = entry.unwrap();
-        
-        if entry.file_type().unwrap().is_file() {
-            let in_path = entry.path();
-            
-            // Support only vertex and fragment shaders currently
-            let some_shader_type =
-                in_path
-                    .extension()
-                    .and_then(|ext| match ext.to_string_lossy().as_ref() {
-                        "vert" => Some(ShaderType::Vertex),
-                        "frag" => Some(ShaderType::Fragment),
-                        _ => None,
-                    }
-                    );
-            
-            if let Some(shader_type) = some_shader_type {
-                use std::io::Read;
-                
-                let source = std::fs::read_to_string(&in_path).unwrap();
-                let mut compiled_file = glsl_to_spirv::compile(&source, shader_type).unwrap();
-                
-                let mut compiled_bytes = Vec::new();
-                compiled_file.read_to_end(&mut compiled_bytes).unwrap();
-                
-                let out_path = format!(
-                    "res/shaders/gen/{}.spv",
-                    in_path.file_name().unwrap().to_string_lossy()
-                );
-                
-                std::fs::write(&out_path, &compiled_bytes).unwrap();
-            }
-        }
-    };
-    Ok(())
-}

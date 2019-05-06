@@ -20,6 +20,9 @@ rev = "ea4683d1"
 [dependencies.obj]
 git = "https://github.com/IGreyGooI/obj"
 
+[dependencies.gfs]
+git = "https://github.com/IGreyGooI/gem"
+                                         
 [dependencies]
 image = "0.19"
 winit = "0.18.1"
@@ -28,8 +31,12 @@ ron = "0.4.1"
 specs = "0.14.3"
 cgmath = "0.17.0"
 time = "0.1.42"
-glsl-to-spirv = "0.1.7"
 sha2 = "0.8.0"
+spirv_cross = "0.12.1"
+gilrs = "0.7.1"
 
 [build-dependencies]
 glsl-to-spirv = "0.1.7"
+
+[profile.release]
+debug = true

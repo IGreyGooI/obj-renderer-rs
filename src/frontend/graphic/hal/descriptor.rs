@@ -18,7 +18,7 @@ pub struct DescriptorPoolState {
 impl DescriptorPoolState {
     pub fn new(
         device_state: Rc<RefCell<DeviceState>>,
-        descriptor_pools: &[DescriptorRangeDesc],
+        pool_size_descs: &[DescriptorRangeDesc],
     ) -> DescriptorPoolState {
         let descriptor_pool = unsafe {
             let device = &device_state.borrow_mut().device;
@@ -26,7 +26,7 @@ impl DescriptorPoolState {
             let descriptor_pool =
                 device.create_descriptor_pool(
                     1,
-                    descriptor_pools,
+                    pool_size_descs,
                     pso::DescriptorPoolCreateFlags::empty(),
                 ).ok();
             descriptor_pool

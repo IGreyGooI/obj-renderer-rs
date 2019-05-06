@@ -6,7 +6,7 @@ layout(location = 1) in vec3 vNormal;
 layout(location = 2) in vec3 vTangent;
 layout(location = 3) in vec2 vTexCoord;
 
-layout(binding = 1) uniform UniformBlock {
+layout(set = 0, binding = 0) uniform UniformBlock {
     mat4 projection_matrix;
     mat4 view_matrix;
     mat4 normal_matrix;

@@ -1,11 +1,12 @@
 use std::{
-    path,
-    io::{self, Read},
-    fs,
     convert,
+    fs,
+    io::{self, Read},
     num,
+    path,
 };
 
+pub mod application_root;
 
 pub fn load_file_as_u8<P: AsRef<path::Path>>(file_path: &P) -> Box<[u8]> {
     let mut buf = Vec::new();

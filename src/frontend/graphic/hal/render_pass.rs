@@ -26,7 +26,7 @@ impl RenderPassState {
                         AttachmentStoreOp::Store,
                     ),
                     stencil_ops: AttachmentOps::DONT_CARE,
-                    layouts: Layout::Undefined..Layout::Present,
+                    layouts: Layout::Undefined..Layout::ColorAttachmentOptimal,
                 };
     
                 let depth_attachment = Attachment {

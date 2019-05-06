@@ -176,20 +176,13 @@ impl SampledImageState {
                         set,
                         binding: 0,
                         array_offset: 0,
-                        descriptors: &[Descriptor::Image(
-                            self.image_state.image_view.as_ref().unwrap(),
-                            Layout::Undefined,
-                        )],
+                        descriptors: &[
+                            Descriptor::CombinedImageSampler(
+                                self.image_state.image_view.as_ref().unwrap(),
+                                Layout::Undefined,
+                                self.sampler_state.sampler.as_ref().unwrap(),
+                            )],
                     },
-                    DescriptorSetWrite {
-                        set,
-                        binding: 1,
-                        array_offset: 0,
-                        descriptors: &[Descriptor::Sampler(
-                            self.sampler_state.sampler.as_ref().unwrap()
-                        )],
-                        
-                    }
                 ]
             )
         }
